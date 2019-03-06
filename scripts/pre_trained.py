@@ -25,12 +25,16 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 
 
 class whaledr(object):
+    """
+        Class to access spectogram data from s3 and Pre-train classifier.
+    """
     def __init__(self):
         self.CREDS_DATA = {}
         self.BUCKET_NAME = 'whaledr'
         self.WHALE_PATH = '../data/train_images/whale'
         self.NON_WHALE_PATH = '../data/train_images/non_whale'
         self.PREFIX = 'megaptera'
+        self.LOOKUP_DELIMITER = '___'
         self.START_LEN = len(self.PREFIX.split('/')[0]) + 1
         self.WHALE_LOOKUP_FILE = '../data/megaptera-13ae9-sampleSummary-export.json'
         self.HYDROPHONE_NAME = ('LJ01C', 'LJ01A') # make this a tuple ('LJ01C', 'LJ01A')
@@ -41,8 +45,8 @@ class whaledr(object):
         self.SEED = 29
         self.BATCH_SIZE = 16
         self.EPOCS = 10
+        self.LAST_LAYERS = 10
         self.MODEL_WEIGHT_CHECKPOINT_PATH = '../data/model_weights'
-        self.LOOKUP_DELIMITER = '___'
 
     def load_creds(self):
         """
@@ -54,6 +58,10 @@ class whaledr(object):
             self.CREDS_DATA = json.load(creds_file)
 
     def data_prep(self):
+        """
+            Utility function to read firebase app lookup file 
+            and pre-process whale and non-whale metadata.
+        """
         # read whale-dr json file to get labelled images
         with open(self.WHALE_LOOKUP_FILE) as whale_file:
             whale_lookup = json.load(whale_file)
@@ -82,6 +90,11 @@ class whaledr(object):
 
 
     def data_fetch(self):
+        """
+            Utility function to read spectogram data saved on
+            s3 bucket and create necessary folder struture of model
+            training.
+        """
         # Access Spectogram from S3
         if not os.path.exists(self.WHALE_PATH):
             os.makedirs(self.WHALE_PATH)
@@ -98,11 +111,17 @@ class whaledr(object):
                 bucket.download_file(obj.key, os.path.join(os.path.join(home, self.NON_WHALE_PATH, self.LOOKUP_DELIMITER.join(obj.key.split('/')))))
         print(i,j)
     def read_img(self, filepath):
+        """
+            Utility function to read spectogram image.
+        """
         img = image.load_img(os.path.join(self.TRAIN_DIR, filepath), target_size=(self.INPUT_SIZE, self.INPUT_SIZE))
         img = image.img_to_array(img)
         return img
 
     def pre_process_input(self):
+        """
+            Utility function to pre-process image file for model training.
+        """
         skipped_ag = []
         self.X_Train = np.zeros((len(self.final_data), self.INPUT_SIZE, self.INPUT_SIZE, 3), dtype='float32')
         for i, file_path in (enumerate(self.final_data['image_id'])):
@@ -121,6 +140,9 @@ class whaledr(object):
 
 
     def validation_setup(self):
+        """
+            Utility function to create train validation setup.
+        """
         # validation_split
         self.Y_train = self.final_data['category'].values
         self.Y_train = list(map(lambda x: 0 if x == 'non_whale' else 1, self.Y_train))
@@ -129,10 +151,14 @@ class whaledr(object):
                                                                     random_state=self.SEED, stratify=self.Y_train)
 
     def model_train(self):
+        """
+            Utility function to use pre-train model with data augmentation
+            and train last n layers.
+        """
         # Base model with Transfer Learning
         baseModel = xception.Xception(weights="imagenet", include_top=False, input_shape=(self.INPUT_SIZE, self.INPUT_SIZE, 3))
-        # unFreeze 10 layers
-        for layer in baseModel.layers[-10:]:
+        # unFreeze last n layers
+        for layer in baseModel.layers[-self.LAST_LAYERS:]:
             layer.trainable = True
 
         # Images generate on the run so we don't have to save any of them.
@@ -178,6 +204,9 @@ class whaledr(object):
         print("Saved model to disk")
 
     def model_predict(self):
+        """
+            Utility function to use trained model weights and make predictions.
+        """
         # load json and create model
         json_file = open("{}/model.json".format(self.MODEL_WEIGHT_CHECKPOINT_PATH), 'r')
         loaded_model_json = json_file.read()
@@ -193,6 +222,9 @@ class whaledr(object):
         print("ROC is:", roc_auc_score(self.y_valid, loaded_model.predict_proba(self.train_valid)))
 
     def main(self):
+        """
+            Utility function to save loss history as csv file.
+        """
         loss_history = self.history.history
         epochs = range(1, len(loss_history['val_loss'])+1)
         final_data = (pd.DataFrame(loss_history, index=epochs))
