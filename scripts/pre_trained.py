@@ -109,7 +109,7 @@ class whaledr(object):
                 bucket.download_file(obj.key, os.path.join(os.path.join(home, self.WHALE_PATH, self.LOOKUP_DELIMITER.join(obj.key.split('/')))))
             elif self.LOOKUP_DELIMITER.join(obj.key.split('/')) in self.non_whale_images:
                 bucket.download_file(obj.key, os.path.join(os.path.join(home, self.NON_WHALE_PATH, self.LOOKUP_DELIMITER.join(obj.key.split('/')))))
-        print(i,j)
+                
     def read_img(self, filepath):
         """
             Utility function to read spectogram image.
