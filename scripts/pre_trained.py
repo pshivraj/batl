@@ -26,7 +26,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 
 class whaledr(object):
     """
-        Class to access spectogram data from s3 and Pre-train classifier.
+        Class to access spectogram data from s3 and build a Pre-trained classifier.
     """
     def __init__(self):
         self.CREDS_DATA = {}
